@@ -187,27 +187,23 @@ class Context:
         self.day = 0
 
 
-
 def update_portfolio(curMarket: Market, curPortfolio: Portfolio, context: Context):
-    """
-    Implement your trading strategy here.
-    """
     import math
     import numpy as np
 
-    # =====================================================
-    # 1) 记录价格历史
-    # =====================================================
+    # ================================
+    # 1) 记录价格
+    # ================================
     for stock in curMarket.stocks:
         context.price_history[stock].append(curMarket.stocks[stock])
 
-    if context.day < 20:
+    if context.day < 25:
         context.day += 1
         return
 
-    # =====================================================
-    # 2) 工具函数（EMA / RSI / slope）
-    # =====================================================
+    # ================================
+    # 2) 工具函数
+    # ================================
     def EMA(values, span):
         alpha = 2 / (span + 1)
         ema = values[0]
@@ -235,49 +231,101 @@ def update_portfolio(curMarket: Market, curPortfolio: Portfolio, context: Contex
         rs = avg_gain / avg_loss
         return 100 - 100 / (1 + rs)
 
-    # =====================================================
-    # 3) 你的 META 权重（长度必须为 20）
-    # =====================================================
-    META = {
-        "Stock_A": [
-            0.00248, -0.00310, 0.00112, -0.00425, 0.00288,
-            0.00091, -0.00177, 0.00322, -0.00239, 0.00155,
-            -0.00044, 0.00083, 0.00121, -0.00210, 0.00277,
-            0.00065, -0.00190, 0.00351, -0.00233, 0.00000
-        ],
-        "Stock_B": [
-            0.00191, -0.00222, 0.00310, -0.00188, 0.00099,
-            0.00142, -0.00333, 0.00211, -0.00120, 0.00117,
-            -0.00142, 0.00288, -0.00255, 0.00109, -0.00071,
-            0.00156, 0.00122, -0.00198, 0.00250, 0.00000
-        ],
-        "Stock_C": [
-            0.00088, 0.00122, -0.00191, 0.00288, -0.00222,
-            0.00198, 0.00210, -0.00155, 0.00314, -0.00219,
-            0.00188, -0.00099, 0.00055, 0.00144, -0.00122,
-            0.00281, -0.00317, 0.00244, -0.00299, 0.00000
-        ],
-        "Stock_D": [
-            0.00210, 0.00144, -0.00281, 0.00133, -0.00104,
-            0.00277, -0.00091, 0.00166, -0.00122, 0.00355,
-            -0.00311, 0.00119, 0.00288, -0.00144, 0.00321,
-            -0.00150, 0.00210, -0.00288, 0.00122, 0.00000
-        ],
-        "Stock_E": [
-            0.00120, -0.00188, 0.00255, 0.00111, -0.00214,
-            0.00351, -0.00177, 0.00198, 0.00211, -0.00244,
-            0.00314, -0.00210, 0.00166, -0.00117, 0.00351,
-            -0.00219, 0.00288, -0.00244, 0.00155, 0.00000
-        ]
+    # ================================
+    # 3) Multi-model (5 stocks → 5 models)
+    #    From your uploaded files
+    # ================================
+    FEATURES = [
+        'ret_1d', 'ret_5d',
+        'mom_3', 'mom_5', 'mom_10',
+        'roc_5',
+        'ma_3', 'ma_5', 'ma_10',
+        'ema_3', 'ema_5', 'ema_10', 'ema_20',
+        'vol_5', 'vol_10',
+        'slope_5', 'slope_10',
+        'rsi_14',
+        'macd', 'macd_signal', 'macd_hist',
+        'bb_pos'
+    ]
+
+    # Load your 5 model parameter sets
+    MODEL_PARAMS = {
+        "Stock_A": {
+            "weights": np.array([410.1803148398336, -256.8315981958379, 50.60188408936558,
+                                 3.0312251369363055, -0.15881593438746053, -256.83159819586905,
+                                 -261.06337448840446, 677.7927814392388, 26.839042922433897,
+                                 -538.0693573351557, 117.78864500982861, -18.940768289401,
+                                 -4.788926803884869, 0.2919213041609878, 0.7426367388516267,
+                                 637.5806831408989, 54.91829084610874, 0.14997245042552038,
+                                 -11.057495650828669, 2.7781375148635727,
+                                 -13.835633165725863, 0.7388446883697001]),
+            "bias": 33.48202880538849
+        },
+        "Stock_B": {
+            "weights": np.array([68.72412264533216, -17.001921897262328, -0.4103135305096369,
+                                 1.0213827147219474, 0.35653313519514185, -17.001921897258697,
+                                 3.099660729072539, -38.56335032364608, -39.59421100010447,
+                                 -70.0988735739905, 206.99972709658954, 19.76476488005648,
+                                 -81.75716674489055, 0.6491156575774547, -1.1608630113733862,
+                                 -28.441568729185178, -68.15904589358475, 0.08473020357652784,
+                                 -75.95521310688122, 1.5771110178864418,
+                                 -77.53232412476387, -1.5664030157022755]),
+            "bias": 7.963435487833824
+        },
+        "Stock_C": {
+            "weights": np.array([-398.8769801271106, 28.529486383541126, -23.481998316173108,
+                                 0.5361282887899975, -0.24409863640511023, 28.529486383606084,
+                                 121.06425901256218, -300.06349413471713, 2.2020418332883724,
+                                 284.65672293878504, -152.2101612821841, 14.461698423816067,
+                                 29.770673438802298, -0.43989940847667175, -0.10448386353991734,
+                                 -287.4818376266746, 0.28354473429854377, 0.08107468951554936,
+                                 34.927354783757835, -3.5554829592896677,
+                                 38.48283774304158, -0.026219082849293092]),
+            "bias": 12.485772948211487
+        },
+        "Stock_D": {
+            "weights": np.array([223.64100833945344, -133.02032575448055, 9.824505440332594,
+                                 1.6674373452311764, 0.38738078196618075, -133.02032575451707,
+                                 -53.91933797603181, 113.12159836895925, -22.753238626240663,
+                                 -163.52526074539483, 176.3596661522332, -23.953255122421577,
+                                 -25.382472498083057, 0.549458205977361, 0.1053571300827147,
+                                 114.16995389757568, -37.2532160456853, 0.13071837926598592,
+                                 -33.69674945757087, 4.359605183718057,
+                                 -38.05635464137319, -1.9978062112989148]),
+            "bias": 0.5871336228521125
+        },
+        "Stock_E": {
+            "weights": np.array([-110.58168222293735, 5.882939420348179, -9.346603270930096,
+                                 -0.09193452072612855, -0.1225318685014602, 5.88293942034509,
+                                 48.553880619363085, -122.87194556104826, -4.2630531505325155,
+                                 108.0150113492986, -38.547915670715774, 5.960605200473722,
+                                 3.214439409146405, -0.4952466441664464, 0.0023153413612910755,
+                                 -117.76349117114356, -11.315608629776793, -0.031067412198694556,
+                                 5.490150712228191, -1.270767987996688,
+                                 6.760918700227721, 1.0067295268895105]),
+            "bias": -4.146371088948835
+        }
     }
 
-    # =====================================================
-    # 4) 生成 20 维因子
-    # =====================================================
-    features = {}
+    def predict(stock, feat_dict):
+        params = MODEL_PARAMS[stock]
+        w = params["weights"]
+        b = params["bias"]
+        x = np.array([feat_dict[f] for f in FEATURES])
+        return float(np.dot(x, w) + b)
 
+    def sigmoid(z):
+        try:
+            return 1 / (1 + math.exp(-z))
+        except OverflowError:
+            return 1.0 if z > 0 else 0.0
+
+    # ================================
+    # 4) 计算因子（22 维）
+    # ================================
+    features = {}
     for stock in curMarket.stocks:
-        prices = context.price_history[stock][-30:]
+        prices = context.price_history[stock][-40:]
 
         ret1 = (prices[-1] - prices[-2]) / prices[-2]
         ret5 = (prices[-1] - prices[-6]) / prices[-6]
@@ -308,41 +356,42 @@ def update_portfolio(curMarket: Market, curPortfolio: Portfolio, context: Contex
         ema12 = EMA(prices[-26:], 12)
         ema26 = EMA(prices[-26:], 26)
         macd = ema12 - ema26
-        macd_signal = EMA([macd], 9)
+        macd_signal = EMA([macd], 9)  
         macd_hist = macd - macd_signal
 
         ma20 = sum(prices[-20:]) / 20
         std20 = np.std(prices[-20:])
         bb_pos = (prices[-1] - ma20) / (2 * std20 + 1e-9)
 
-        features[stock] = [
-            ret1, ret5, mom3, mom5, mom10,
-            roc5, ma3, ma5, ma10,
-            ema3, ema5, ema10, ema20,
-            vol5, vol10, slope5, slope10,
-            rsi14, macd, macd_signal, macd_hist, bb_pos
-        ]
+        features[stock] = {
+            'ret_1d': ret1, 'ret_5d': ret5,
+            'mom_3': mom3, 'mom_5': mom5, 'mom_10': mom10,
+            'roc_5': roc5,
+            'ma_3': ma3, 'ma_5': ma5, 'ma_10': ma10,
+            'ema_3': ema3, 'ema_5': ema5, 'ema_10': ema10, 'ema_20': ema20,
+            'vol_5': vol5, 'vol_10': vol10,
+            'slope_5': slope5, 'slope_10': slope10,
+            'rsi_14': rsi14,
+            'macd': macd, 'macd_signal': macd_signal, 'macd_hist': macd_hist,
+            'bb_pos': bb_pos
+        }
 
-    # =====================================================
-    # 5) Meta 得分 → 概率
-    # =====================================================
-    def sigmoid(z):
-        return 1 / (1 + math.exp(-z))
-
+    # ================================
+    # 5) ML 概率（5 模型独立预测）
+    # ================================
     scores = {}
+    probs = {}
     for stock in curMarket.stocks:
-        w = META[stock]
-        x = features[stock]
-        s = sum(w[i] * x[i] for i in range(20))
-        scores[stock] = s
+        score = predict(stock, features[stock])
+        prob = sigmoid(score)
+        scores[stock] = score
+        probs[stock] = prob
 
-    probs = {s: sigmoid(scores[s]) for s in scores}
-
-    # =====================================================
-    # 6) 目标权重（D 方案）
-    # =====================================================
-    TH = 0.52
-    SCALE = 0.25
+    # ================================
+    # 6) 初始权重（基于概率）
+    # ================================
+    TH = 0.53  
+    SCALE = 0.30
 
     target_w = {
         s: (probs[s] - TH) * SCALE if probs[s] > TH else 0.0
@@ -353,34 +402,108 @@ def update_portfolio(curMarket: Market, curPortfolio: Portfolio, context: Contex
     if tw_sum > 0:
         target_w = {s: target_w[s] / tw_sum for s in target_w}
 
-    # =====================================================
-    # 7) 调仓
-    # =====================================================
+    # ================================
+    # 7) 风控软过滤
+    # ================================
+    final_w = {}
+    for stock in target_w:
+        prices = context.price_history[stock]
+
+        ema10 = EMA(prices[-20:], 10)
+        ema20 = EMA(prices[-20:], 20)
+        trend_factor = 1.0 if ema10 > ema20 else 0.4
+
+        last20 = prices[-20:]
+        peak = max(last20)
+        dd = (last20[-1] - peak) / peak
+        dd_factor = 0 if dd < -0.15 else 1.0
+
+        past10 = prices[-10:]
+        down_days = sum(past10[i] < past10[i - 1] for i in range(1, 10))
+        down_factor = 0.3 if down_days >= 7 else 1.0
+
+        vol = np.std(prices[-20:])
+        vol_target = 0.03
+        vol_factor = min(1.0, vol_target / (vol + 1e-9))
+
+        w = target_w[stock]
+        w *= trend_factor
+        w *= dd_factor
+        w *= down_factor
+        w *= (0.5 + 0.5 * vol_factor)
+
+        final_w[stock] = w
+
+    fw_sum = sum(final_w.values())
+    if fw_sum > 0:
+        final_w = {s: final_w[s] / fw_sum for s in final_w}
+
+    # ================================
+    # 8) 仓位平滑 + 强 Dead Zone + 更严格日变化限制
+    # ================================
+    if not hasattr(context, "prev_w"):
+        context.prev_w = {s: 0 for s in curMarket.stocks}
+
+    DEAD_ZONE = 0.06               # 最小权重变化 6%
+    MAX_DAILY_DELTA = 0.03         # 每日最多调 3%
+
+    smoothed_w = {}
+    for s in final_w:
+        prev = context.prev_w[s]
+        target = final_w[s]
+
+        new_w = 0.7 * prev + 0.3 * target
+
+        if abs(new_w - prev) < DEAD_ZONE:
+            new_w = prev
+
+        # 最大每日变化幅度限制
+        delta = new_w - prev
+        if delta > MAX_DAILY_DELTA:
+            new_w = prev + MAX_DAILY_DELTA
+        elif delta < -MAX_DAILY_DELTA:
+            new_w = prev - MAX_DAILY_DELTA
+
+        smoothed_w[s] = new_w
+
+    context.prev_w = smoothed_w
+
+    # ================================
+    # 9) 调仓执行（7 天一次 & 更高阈值）
+    # ================================
+
+    # 每 7 天调仓一次
+    if context.day % 7 != 0:
+        context.day += 1
+        return
+
     total_value = curPortfolio.evaluate(curMarket)
+    MIN_TRADE_VALUE = total_value * 0.007  # 每次至少 0.7% 才交易
 
     for stock in curMarket.stocks:
-        desired_value = target_w.get(stock, 0) * total_value
+        desired_value = smoothed_w[stock] * total_value
         current_value = curPortfolio.get_position_value(stock, curMarket)
         diff = desired_value - current_value
 
-        if abs(diff) < 1e-6:
+        if abs(diff) < MIN_TRADE_VALUE:
             continue
 
         price = curMarket.stocks[stock]
         shares = diff / price
 
-        if shares > 0:  # BUY
+        if shares > 0:
             max_buy = curPortfolio.get_max_buyable_shares(stock, curMarket)
-            buy_shares = min(shares, max_buy)
-            if buy_shares > 1e-6:
-                curPortfolio.buy(stock, buy_shares, curMarket)
-
-        else:  # SELL
-            sell_shares = min(-shares, curPortfolio.shares[stock])
-            if sell_shares > 1e-6:
-                curPortfolio.sell(stock, sell_shares, curMarket)
+            b = min(shares, max_buy)
+            if b > 1e-6:
+                curPortfolio.buy(stock, b, curMarket)
+        else:
+            s = min(-shares, curPortfolio.shares[stock])
+            if s > 1e-6:
+                curPortfolio.sell(stock, s, curMarket)
 
     context.day += 1
+
+
 
 
 
